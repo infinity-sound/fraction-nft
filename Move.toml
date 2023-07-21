@@ -1,0 +1,12 @@
+[package]
+name = "fraction NFT"
+version = "1.0.0"
+
+[addresses]
+aptos_framework = "0x1"
+
+
+
+[dependencies]
+AptosFramework={git = "https://github.com/aptos-labs/aptos-core.git",subdir = "aptos-move/framework/aptos-framework",rev = "devnet"}
+AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects/", rev="devnet"}
