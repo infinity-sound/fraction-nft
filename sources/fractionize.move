@@ -31,19 +31,21 @@ module fractionNFT::Fraction {
         resource_signer_cap:account::SignerCapability
     }
 
-    fun init_module(resource_account: &signer) acquires ManagedFungibleAsset{
+    fun init_module(resource_account: &signer) acquires ResourceCap{
         let resource_signer_cap = resource_account::retrieve_resource_account_cap(resource_account, @source_addr);
         move_to(resource_account, ResourceCap {
             resource_signer_cap: resource_signer_cap,
-        });
+        });     
         create_album_collection(resource_account);
-        init_token(resource_account);
-        mint(resource_account,1000,@source_addr);
     }
 
-    public entry fun create_album_collection(creator: &signer) {
+   
+
+    public entry fun create_album_collection(creator: &signer)acquires ResourceCap {
+        let resource_account_data = borrow_global_mut<ResourceCap>(@fractionNFT);
+        let resource_account_signer = account::create_signer_with_capability(&resource_account_data.resource_signer_cap);
         collection::create_unlimited_collection(
-            creator,
+            &resource_account_signer,
             utf8(b"Collection containing different types of albums. Each album is a separate token"),
             utf8(COLLECTION_NAME), 
             option::none(),
@@ -52,26 +54,28 @@ module fractionNFT::Fraction {
 }
     /// Initialize metadata object and store the refs.
 
-    fun init_token(admin: &signer) {
+    public entry fun init_token(admin: &signer,collection_name:String,description:String,asset_name:String,uri:String,token_name:String,token_symbol:String,decimals:u8,icon_uri:String,project_uri:String,receiver:address) acquires ResourceCap,ManagedFungibleAsset {
+        let admin_addr= signer::address_of(admin);
+        assert!(admin_addr==@source_addr,1);
+         let resource_account_data = borrow_global_mut<ResourceCap>(@fractionNFT);
+        let resource_account_signer = account::create_signer_with_capability(&resource_account_data.resource_signer_cap);
         let constructor_ref = &token::create_named_token(
-        admin,
-        utf8(COLLECTION_NAME),
-        utf8(b"Check album description"),
-        utf8(ASSET_NAME),
+        &resource_account_signer,
+        collection_name,
+        description,
+        asset_name,
         option::none(),
-        utf8(b"https://myAlbum.com/my-album-token.jpeg"),
+        uri,
         );
         primary_fungible_store::create_primary_store_enabled_fungible_asset(
             constructor_ref,
             option::some(1000),
-            utf8(TOKEN_NAME),
-            utf8(ASSET_SYMBOL), 
-            6,
-            utf8(b"http://example.com/favicon.ico"), 
-            utf8(b"http://example.com"),
+            token_name,
+            token_symbol, 
+            decimals,
+            icon_uri,
+            project_uri
         );
-        
-
         // Create mint/burn/transfer refs to allow creator to manage the fungible asset.
         let mint_ref = fungible_asset::generate_mint_ref(constructor_ref);
         let burn_ref = fungible_asset::generate_burn_ref(constructor_ref);
@@ -80,54 +84,61 @@ module fractionNFT::Fraction {
         move_to(
             &metadata_object_signer,
             ManagedFungibleAsset { mint_ref, transfer_ref, burn_ref }
-        )
+        );
+
+        mint(admin,1000,receiver,asset_name);
+
     }
 
     #[view]
     /// Return the address of the managed fungible asset that's created when this module is deployed.
-    public fun get_metadata(): Object<Metadata> {
-        let seed = token::create_token_seed(&utf8(COLLECTION_NAME), &utf8(ASSET_NAME));
+    public fun get_metadata(asset:String) : Object<Metadata>  {
+        let seed = token::create_token_seed(&utf8(COLLECTION_NAME), &asset);
         let asset_address = object::create_object_address(&@fractionNFT, seed);
         object::address_to_object<Metadata>(asset_address)
     }
 
     #[view]
-    public fun balance(user:address):u64{
-        let asset = get_metadata();
+    public fun balance(user:address,asset_name:String):u64  {
+        let asset = get_metadata(asset_name);
         primary_fungible_store::balance(user, asset)
     }
 
-    #[view]
-    public fun name():String {
-        let metadata_obj = get_metadata();
-        fungible_asset::name(metadata_obj)
-    }
+    // #[view]
+    // public fun name():String  {
+    //     let metadata_obj = get_metadata();
+    //     fungible_asset::name(metadata_obj)
+    // }
 
     #[view]
-    public fun decimals():u8 {
-        let metadata_obj = get_metadata();
+    public fun decimals(asset_name:String):u8  {
+        let metadata_obj = get_metadata(asset_name);
         fungible_asset::decimals(metadata_obj)
     }
     #[view]
-    public fun symbol():String {
-        let metadata_obj = get_metadata();
+    public fun symbol(asset_name:String):String  {
+        let metadata_obj = get_metadata(asset_name);
         fungible_asset::symbol(metadata_obj)
     }
    
 
     /// Mint as the owner of metadata object.
-    fun mint(admin: &signer, amount: u64, to: address) acquires ManagedFungibleAsset {
-        let asset = get_metadata();
-        let managed_fungible_asset = authorized_borrow_refs(admin, asset);
-        let to_wallet = primary_fungible_store::ensure_primary_store_exists(to, asset);
+    fun mint(admin: &signer, amount: u64, receiver: address,asset_name:String) acquires ManagedFungibleAsset,ResourceCap{
+        let admin_addr= signer::address_of(admin);
+        assert!(admin_addr==@source_addr,1);
+        let asset = get_metadata(asset_name);
+        let resource_account_data = borrow_global_mut<ResourceCap>(@fractionNFT);
+        let resource_account_signer = account::create_signer_with_capability(&resource_account_data.resource_signer_cap);
+        let managed_fungible_asset = authorized_borrow_refs(&resource_account_signer, asset);
+        let to_wallet = primary_fungible_store::ensure_primary_store_exists(receiver, asset);
         let fa = fungible_asset::mint(&managed_fungible_asset.mint_ref, amount);
         fungible_asset::deposit_with_ref(&managed_fungible_asset.transfer_ref, to_wallet, fa);
     }
 
     /// Transfer as the owner of metadata object ignoring `frozen` field.
-    public entry fun transfer(admin: &signer, to: address, amount: u64) acquires ManagedFungibleAsset,ResourceCap {
-        let asset = get_metadata();
+    public entry fun transfer(admin: &signer, to: address, amount: u64,asset_name:String) acquires ManagedFungibleAsset,ResourceCap {
         let from_address = signer::address_of(admin);
+        let asset = get_metadata(asset_name);
         let resource_account_data = borrow_global_mut<ResourceCap>(@fractionNFT);
         let resource_account_signer = account::create_signer_with_capability(&resource_account_data.resource_signer_cap);
         let transfer_ref = &authorized_borrow_refs(&resource_account_signer, asset).transfer_ref;
@@ -136,29 +147,29 @@ module fractionNFT::Fraction {
         fungible_asset::transfer_with_ref(transfer_ref, from_wallet, to_wallet, amount);
     }
 
-    /// Burn fungible assets as the owner of metadata object.
-     fun burn(admin: &signer, from: address, amount: u64) acquires ManagedFungibleAsset {
-        let asset = get_metadata();
-        let burn_ref = &authorized_borrow_refs(admin, asset).burn_ref;
-        let from_wallet = primary_fungible_store::primary_store(from, asset);
-        fungible_asset::burn_from(burn_ref, from_wallet, amount);
-    }
+    // /// Burn fungible assets as the owner of metadata object.
+    //  fun burn(admin: &signer, from: address, amount: u64) acquires ManagedFungibleAsset, {
+    //     let asset = get_metadata();
+    //     let burn_ref = &authorized_borrow_refs(admin, asset).burn_ref;
+    //     let from_wallet = primary_fungible_store::primary_store(from, asset);
+    //     fungible_asset::burn_from(burn_ref, from_wallet, amount);
+    // }
 
-    /// Withdraw as the owner of metadata object ignoring `frozen` field.
-    public fun withdraw(admin: &signer, amount: u64, from: address): FungibleAsset acquires ManagedFungibleAsset {
-        let asset = get_metadata();
-        let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
-        let from_wallet = primary_fungible_store::primary_store(from, asset);
-        fungible_asset::withdraw_with_ref(transfer_ref, from_wallet, amount)
-    }
+    // /// Withdraw as the owner of metadata object ignoring `frozen` field.
+    // public fun withdraw(admin: &signer, amount: u64, from: address): FungibleAsset acquires ManagedFungibleAsset ,{
+    //     let asset = get_metadata();
+    //     let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
+    //     let from_wallet = primary_fungible_store::primary_store(from, asset);
+    //     fungible_asset::withdraw_with_ref(transfer_ref, from_wallet, amount)
+    // }
 
-    /// Deposit as the owner of metadata object ignoring `frozen` field.
-    public fun deposit(admin: &signer, to: address, fa: FungibleAsset) acquires ManagedFungibleAsset {
-        let asset = get_metadata();
-        let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
-        let to_wallet = primary_fungible_store::ensure_primary_store_exists(to, asset);
-        fungible_asset::deposit_with_ref(transfer_ref, to_wallet, fa);
-    }
+    // /// Deposit as the owner of metadata object ignoring `frozen` field.
+    // public fun deposit(admin: &signer, to: address, fa: FungibleAsset) acquires ManagedFungibleAsset ,{
+    //     let asset = get_metadata();
+    //     let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
+    //     let to_wallet = primary_fungible_store::ensure_primary_store_exists(to, asset);
+    //     fungible_asset::deposit_with_ref(transfer_ref, to_wallet, fa);
+    // }
 
     /// Borrow the immutable reference of the refs of `metadata`.
     /// This validates that the signer is the metadata object's owner.
