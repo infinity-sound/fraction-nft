@@ -147,29 +147,6 @@ module fractionNFT::Fraction {
         fungible_asset::transfer_with_ref(transfer_ref, from_wallet, to_wallet, amount);
     }
 
-    // /// Burn fungible assets as the owner of metadata object.
-    //  fun burn(admin: &signer, from: address, amount: u64) acquires ManagedFungibleAsset, {
-    //     let asset = get_metadata();
-    //     let burn_ref = &authorized_borrow_refs(admin, asset).burn_ref;
-    //     let from_wallet = primary_fungible_store::primary_store(from, asset);
-    //     fungible_asset::burn_from(burn_ref, from_wallet, amount);
-    // }
-
-    // /// Withdraw as the owner of metadata object ignoring `frozen` field.
-    // public fun withdraw(admin: &signer, amount: u64, from: address): FungibleAsset acquires ManagedFungibleAsset ,{
-    //     let asset = get_metadata();
-    //     let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
-    //     let from_wallet = primary_fungible_store::primary_store(from, asset);
-    //     fungible_asset::withdraw_with_ref(transfer_ref, from_wallet, amount)
-    // }
-
-    // /// Deposit as the owner of metadata object ignoring `frozen` field.
-    // public fun deposit(admin: &signer, to: address, fa: FungibleAsset) acquires ManagedFungibleAsset ,{
-    //     let asset = get_metadata();
-    //     let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
-    //     let to_wallet = primary_fungible_store::ensure_primary_store_exists(to, asset);
-    //     fungible_asset::deposit_with_ref(transfer_ref, to_wallet, fa);
-    // }
 
     /// Borrow the immutable reference of the refs of `metadata`.
     /// This validates that the signer is the metadata object's owner.
