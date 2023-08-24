@@ -1,14 +1,12 @@
 [package]
-name = "fraction NFT"
+name = "FRACTIONIZE"
 version = "1.0.0"
 
 [addresses]
-aptos_framework = "0x1"
-fractionNFT="_"
-source_addr="_"
-
+fractionNFT='9624e26efb8fa843bd3a417440c47c8690398598a5c2b91218913f89bd9fad27'
 
 
 [dependencies]
+InfinityCoin = {local = "D:/Metapolis/aptos/infinity-coin/"}
 AptosFramework={git = "https://github.com/aptos-labs/aptos-core.git",subdir = "aptos-move/framework/aptos-framework",rev = "devnet"}
 AptosTokenObjects = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-token-objects/", rev="devnet"}
