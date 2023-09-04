@@ -1,11 +1,11 @@
-module infinity_token_objects::infinity_token {
+module infinity::infinity_token {
     use std::option::{Self,Option};
     use std::signer;
     use aptos_token_objects::collection;
     use aptos_token_objects::royalty;
     use aptos_token_objects::token;
     use aptos_token_objects::property_map;
-    use std::string::{String,utf8};
+    use std::string::{String};
     use aptos_framework::object::{Self,ConstructorRef, Object};
     use std::error;
 
@@ -15,7 +15,7 @@ module infinity_token_objects::infinity_token {
 
 
    /// The collection does not exist
-    const ECOLLECTION_DOES_NOT_EXIST: u64 = 1;
+    const ECOLLECTION_DOES_NOT_EXIST: u64 = 1;  
     /// The token does not exist
     const ETOKEN_DOES_NOT_EXIST: u64 = 2; 
 
