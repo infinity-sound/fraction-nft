@@ -1,9 +1,9 @@
 [package]
-name = "FRACTIONIZE"
+name = "INFINITY"
 version = "1.0.0"
 
 [addresses]
-fractionNFT='9624e26efb8fa843bd3a417440c47c8690398598a5c2b91218913f89bd9fad27'
+resource_addr="4d3759b50d7fa0d64d1743a409b1313f04d8cad51530f7f4af6294e33fc2f6e0"
 
 
 [dependencies]

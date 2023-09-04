@@ -1,4 +1,4 @@
-module fractionNFT::Fraction {
+module infinity::fraction_nft {
     use aptos_framework::fungible_asset::{Self, MintRef, TransferRef, BurnRef, Metadata};
     use aptos_framework::object::{Self, Object};
     use aptos_framework::primary_fungible_store;
@@ -11,7 +11,8 @@ module fractionNFT::Fraction {
     use aptos_framework::resource_account;
     use aptos_framework::account;
 
-    use infinity_token_objects::infinity_token;
+    use infinity::events;
+    use infinity::infinity_token;
     use inf_custom_coin::inf_coin::{INFCOIN};
 
 
@@ -55,6 +56,8 @@ module fractionNFT::Fraction {
         rate:u64,
     }
 
+    // struct 
+
 
     fun init_module(resource_account: &signer) {
         let resource_signer_cap = resource_account::retrieve_resource_account_cap(resource_account, @source_addr);
@@ -62,6 +65,7 @@ module fractionNFT::Fraction {
             resource_signer_cap: resource_signer_cap,
         });     
         create_album_aptos_collection(resource_account);
+        events::init(resource_account);
     }
 
      fun create_album_aptos_collection(creator: &signer) {
@@ -93,18 +97,19 @@ module fractionNFT::Fraction {
         uri:String,
         token_name:String,
         token_symbol:String,
+        maximum_supply:u128,
         decimals:u8,
         icon_uri:String,
         project_uri:String,
         receiver:address,
+        min_holding:u64,
+        rate:u64,
         property_keys: vector<String>,
         property_types: vector<String>,
         property_values: vector<vector<u8>>
     ) acquires ResourceCap,ManagedFungibleAsset
     {       
-        let admin_addr= signer::address_of(admin);
-        assert!(admin_addr==@source_addr,1);
-        let resource_account_data = borrow_global_mut<ResourceCap>(@fractionNFT);
+        let resource_account_data = borrow_global_mut<ResourceCap>(@infinity);
         let resource_account_signer = account::create_signer_with_capability(&resource_account_data.resource_signer_cap);
         let constructor_ref=infinity_token::mint_soul_bound_infinity_token(
             &resource_account_signer,
@@ -119,7 +124,7 @@ module fractionNFT::Fraction {
         );
         primary_fungible_store::create_primary_store_enabled_fungible_asset(
             &constructor_ref,
-            option::some(1000),
+            option::some(maximum_supply),
             token_name,
             token_symbol, 
             decimals,
@@ -137,9 +142,14 @@ module fractionNFT::Fraction {
         );
         move_to(
             &metadata_object_signer,
-            OwnerConstraints { min_holding:500,rate:1 }
+            OwnerConstraints { min_holding,rate }
         );
         mint(admin,1000,receiver,asset_name);
+        let nft = object::object_from_constructor_ref(&constructor_ref);
+        let tokenMetadata = events::token_metadata_for_tokenv2(nft);
+        let asset = get_metadata(asset_name);
+        let faMetadata = events::fungible_asset_metadata(asset);
+        events::emit_create_token_event(tokenMetadata,faMetadata,receiver);
     }
 
     public entry fun update_min_holding(holder:&signer,asset_name:String,min_holding_amount:u64) acquires OwnerConstraints{
@@ -167,30 +177,33 @@ module fractionNFT::Fraction {
 
     public entry fun buy_fungible_asset(requester:&signer,from:address,amount:u64,asset_name:String) acquires ManagedFungibleAsset,OwnerConstraints{
         let requester_address = signer::address_of(requester);
+        let asset = get_metadata(asset_name);  
+        assert!(object::is_owner(asset, from), error::permission_denied(ENOT_OWNER));
         let sender_min_holding = get_asset_min_holding(asset_name);
         let sender_rate = get_asset_rate(asset_name);
         let sender_balance = get_asset_balance(from,asset_name);
         let buy_limit = sender_balance-sender_min_holding;
         assert!(amount<=buy_limit,error::canonical(INSUFFICIENT_RESOURCE,ENOT_ENOUGH_FA));
         coin::transfer<INFCOIN>(requester,from,sender_rate*amount);
-        transfer(from,requester_address,amount,asset_name);
-    }
+        transfer(from,requester_address,amount,asset_name,sender_rate*amount);
 
+    }
+    
     public entry fun transfer_fungible_asset(owner:&signer,to:address,amount:u64,asset_name:String) acquires ManagedFungibleAsset{
         let owner_address = signer::address_of(owner);
-        let asset = get_metadata(asset_name);  
-        assert!(object::is_owner(asset, signer::address_of(owner)), error::permission_denied(ENOT_OWNER));
-        transfer(owner_address,to,amount,asset_name);
+        transfer(owner_address,to,amount,asset_name,0);
 
     }
     /// Transfer as the owner of metadata object ignoring `frozen` field.
-    inline fun transfer(from_address:address, to: address, amount: u64,asset_name:String) acquires ManagedFungibleAsset {
+    inline fun transfer(from_address:address, to: address, amount: u64,asset_name:String,inf_amount:u64) acquires ManagedFungibleAsset {
         // let from_address = signer::address_of(admin);
         let asset = get_metadata(asset_name);  
         let transfer_ref = &borrow_global<ManagedFungibleAsset>(object::object_address(&asset)).transfer_ref;
         let from_wallet = primary_fungible_store::primary_store(from_address, asset);
         let to_wallet = primary_fungible_store::ensure_primary_store_exists(to, asset);
         fungible_asset::transfer_with_ref(transfer_ref, from_wallet, to_wallet, amount);
+        let fa_metadata = events::fungible_asset_metadata(asset);
+        events::emit_transfer_fungible_asset_event(from_address,to,amount,inf_amount,fa_metadata);
     }
 
     // accessors
@@ -219,7 +232,7 @@ module fractionNFT::Fraction {
     /// Return the address of the managed fungible asset that's created when this module is deployed.
     public fun get_metadata(asset:String) : Object<Metadata>  {
         let seed = token::create_token_seed(&utf8(COLLECTION_NAME), &asset);
-        let asset_address = object::create_object_address(&@fractionNFT, seed);
+        let asset_address = object::create_object_address(&@infinity, seed);
         object::address_to_object<Metadata>(asset_address)
     }
 
@@ -255,7 +268,7 @@ module fractionNFT::Fraction {
         fungible_asset::symbol(metadata_obj)
     }
 
-    #[test(creator = @fractionNFT)]
+    #[test(creator = @infinity)]
     fun test_basic_flow(
         creator: &signer,
     ) acquires ManagedFungibleAsset,ResourceCap {
